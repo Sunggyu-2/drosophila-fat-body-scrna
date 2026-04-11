@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>gist.drosophila_fat body_Sc-seq</title>
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0f1117;--card:#1a1c23;--border:#2d2f36;--text:#e0e0e0;--muted:#888;
+  --accent:#3a86ff;--red:#e84855;--green:#55efc4;--orange:#ff9f43;--pink:#fd79a8}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  background:var(--bg);color:var(--text);line-height:1.5}
+header{background:var(--card);border-bottom:1px solid var(--border);padding:12px 24px;
+  display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:100}
+header h1{font-size:18px;font-weight:700}
+header .badge{font-size:12px;background:var(--accent);color:#fff;padding:2px 8px;
+  border-radius:10px;font-weight:600}
+.metrics{display:flex;gap:12px;padding:12px 24px;flex-wrap:wrap}
+.metric{background:var(--card);border:1px solid var(--border);border-radius:8px;
+  padding:10px 16px;min-width:120px}
+.metric .label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px}
+.metric .value{font-size:20px;font-weight:700;color:var(--accent)}
+nav{display:flex;gap:0;background:var(--card);border-bottom:1px solid var(--border);
+  overflow-x:auto;padding:0 16px}
+nav button{background:none;border:none;color:var(--muted);padding:10px 16px;
+  font-size:13px;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;
+  font-weight:500;transition:all 0.2s}
+nav button:hover{color:var(--text)}
+nav button.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab{display:none;padding:16px 24px}
+.tab.active{display:block}
+.row{display:flex;gap:16px;flex-wrap:wrap}
+.col{flex:1;min-width:300px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:8px;
+  padding:16px;margin-bottom:16px}
+.card h3{font-size:14px;font-weight:600;margin-bottom:8px;color:var(--accent)}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;padding:6px 8px;border-bottom:2px solid var(--border);
+  color:var(--muted);font-weight:600;text-transform:uppercase;font-size:11px}
+td{padding:5px 8px;border-bottom:1px solid var(--border)}
+tr:hover{background:rgba(58,134,255,0.05)}
+tr.amp-high{background:rgba(255,243,205,0.08)}
+tr.amp-high td:first-child{color:var(--red);font-weight:700}
+.gene-search{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+.gene-search input{background:var(--bg);border:1px solid var(--border);color:var(--text);
+  padding:8px 12px;border-radius:6px;font-size:14px;width:240px}
+.gene-search input:focus{outline:none;border-color:var(--accent)}
+.gene-search select{background:var(--bg);border:1px solid var(--border);color:var(--text);
+  padding:8px;border-radius:6px;font-size:13px;max-width:240px}
+.amp-btn{background:var(--red);color:#fff;border:none;padding:4px 8px;border-radius:4px;
+  font-size:11px;cursor:pointer;font-weight:600}
+.amp-btn:hover{opacity:0.8}
+.tag{display:inline-block;padding:2px 6px;border-radius:3px;font-size:10px;font-weight:600}
+.tag-f{background:rgba(255,105,180,0.2);color:var(--pink)}
+.tag-m{background:rgba(65,105,225,0.2);color:#4169E1}
+.tag-amp{background:rgba(232,72,85,0.2);color:var(--red)}
+.tag-low{background:rgba(136,136,136,0.15);color:var(--muted)}
+.img-container{text-align:center;margin:8px 0}
+.img-container img{max-width:100%;border-radius:6px;border:1px solid var(--border)}
+.loading{text-align:center;padding:40px;color:var(--muted)}
+#gene-results{font-size:11px;color:var(--muted);margin-left:4px}
+.highlight{color:var(--red);font-weight:700}
+.plotly-graph-div{border-radius:8px;overflow:hidden}
+</style>
+</head>
+<body>
+
+<header>
+  <span style="font-size:24px">🪰</span>
+  <h1>gist.drosophila_fat body_Sc-seq</h1>
+  <span class="badge">D. melanogaster</span>
+  <span class="badge" style="background:var(--red)">48,232 cells</span>
+  <span class="badge" style="background:var(--green);color:#222">14,358 genes</span>
+</header>
+
+<div class="metrics" id="metrics-bar"></div>
+
+<nav id="tabs-nav">
+  <button class="active" onclick="showTab('umap')">UMAP Explorer</button>
+  <button onclick="showTab('annotation')">Cluster Annotation</button>
+  <button onclick="showTab('bulk')">Bulk vFB/SAT Mapping</button>
+  <button onclick="showTab('genesets')">vFB vs SAT Gene Sets</button>
+  <button onclick="showTab('amp')">AMP Sub-clustering</button>
+  <button onclick="showTab('sc9')">SC9 Immune Burst</button>
+  <button onclick="showTab('figures')">Analysis Figures</button>
+</nav>
+
+<!-- TAB 1: UMAP Explorer -->
+<div class="tab active" id="tab-umap">
+  <div class="card">
+    <div class="gene-search">
+      <input type="text" id="gene-filter" placeholder="Search gene..." oninput="filterGenes()">
+      <select id="gene-select" onchange="onGeneChange()"></select>
+      <span id="gene-results"></span>
+      <span style="margin-left:12px;color:var(--muted);font-size:12px">Quick:</span>
+      <button class="amp-btn" onclick="selectGene('Dro')">Dro</button>
+      <button class="amp-btn" onclick="selectGene('DptA')">DptA</button>
+      <button class="amp-btn" onclick="selectGene('Mtk')">Mtk</button>
+      <button class="amp-btn" onclick="selectGene('AttC')">AttC</button>
+      <button class="amp-btn" onclick="selectGene('IBIN')">IBIN</button>
+      <button class="amp-btn" onclick="selectGene('Drs')">Drs</button>
+      <button class="amp-btn" style="background:var(--accent)" onclick="selectGene('Yp1')">Yp1</button>
+      <button class="amp-btn" style="background:var(--accent)" onclick="selectGene('hth')">hth</button>
+      <button class="amp-btn" style="background:var(--accent)" onclick="selectGene('foxo')">foxo</button>
+      <button class="amp-btn" style="background:var(--accent)" onclick="selectGene('FASN1')">FASN1</button>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col"><div id="umap-cluster" style="height:500px"></div></div>
+    <div class="col"><div id="umap-gene" style="height:500px"></div></div>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <div class="col"><div id="bar-cluster" style="height:300px"></div></div>
+    <div class="col"><div id="dotplot" style="height:300px"></div></div>
+  </div>
+</div>
+
+<!-- TAB 2: Cluster Annotation -->
+<div class="tab" id="tab-annotation">
+  <div class="card">
+    <h3>Cluster Functional Annotation</h3>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:12px">
+      15 Leiden clusters resolved from integrated FCA + AFCA fat body data.
+      <strong style="color:var(--red)">No published study has resolved adult Drosophila fat body into subtypes by scRNA-seq</strong> —
+      FCA (Li et al. 2022) and AFCA (Lu et al. 2023) both classified fat body as a single cell type.
+    </p>
+    <table id="annotation-table"></table>
+  </div>
+  <div class="row">
+    <div class="col card">
+      <h3>Classification by Function</h3>
+      <div id="func-table"></div>
+    </div>
+    <div class="col card">
+      <h3>Aging Trajectory</h3>
+      <div style="font-size:13px;line-height:2">
+        <p><strong style="color:var(--pink)">Female:</strong>
+          C0/C12 (3d, active) → C14 (5d, stressed) → C1/C11 (30d, lipogenic) → C9 (50d, metabolic) → C4 (50-70d, identity) → C6 (70d, senescent)</p>
+        <p style="margin-top:8px"><strong style="color:#4169E1">Male:</strong>
+          C13 (5d, reproductive) → C2/C7 (3d, immune) → C3 (30d, metabolic) → C10 (30-50d, immune-primed) → C5 (50d, stressed)</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TAB 3: Bulk vFB/SAT Mapping -->
+<div class="tab" id="tab-bulk">
+  <div class="card">
+    <h3>Pseudo-bulk Correlation: SC Clusters vs Bulk vFB/SAT</h3>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:12px">
+      Each cluster's pseudo-bulk profile correlated with bulk vFB and SAT RNA-seq (Pearson r).
+      All clusters are <strong>vFB-like</strong> (expected: SC data is fat body).
+    </p>
+    <div class="row">
+      <div class="col"><div id="bulk-scatter" style="height:450px"></div></div>
+      <div class="col"><div id="bulk-bar" style="height:450px"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- TAB 4: Gene Sets -->
+<div class="tab" id="tab-genesets">
+  <div class="card">
+    <h3>vFB vs SAT Distinguishing Gene Sets</h3>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:12px">
+      Top 50 DEGs (padj < 0.05, |LFC| > 1) that distinguish vFB from SAT in bulk RNA-seq.
+    </p>
+    <div class="row">
+      <div class="col">
+        <h3 style="color:var(--red)">vFB-up Genes (top 20)</h3>
+        <table id="vfb-genes-table"></table>
+      </div>
+      <div class="col">
+        <h3 style="color:var(--accent)">SAT-up Genes (top 20)</h3>
+        <table id="sat-genes-table"></table>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="img-container">
+      <img src="figures/sc20_vFB_SAT_geneset_UMAP.png" alt="vFB vs SAT Gene Set UMAP" loading="lazy">
+    </div>
+  </div>
+</div>
+
+<!-- TAB 5: AMP Sub-clustering -->
+<div class="tab" id="tab-amp">
+  <div class="card">
+    <h3>AMP-high Cell Sub-clustering</h3>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:12px">
+      18,651 cells from AMP-high clusters (C0, C2, C7, C10, C14) re-clustered into 14 sub-populations.
+    </p>
+    <table id="amp-table"></table>
+  </div>
+  <div class="row">
+    <div class="col card img-container">
+      <img src="figures/sc23_AMP_subcluster_overview.png" alt="AMP sub-cluster overview" loading="lazy">
+    </div>
+    <div class="col card img-container">
+      <img src="figures/sc25_AMP_subcluster_annotated.png" alt="AMP sub-cluster annotated" loading="lazy">
+    </div>
+  </div>
+  <div class="card img-container">
+    <img src="figures/sc24_AMP_subcluster_genes.png" alt="AMP genes" loading="lazy">
+  </div>
+</div>
+
+<!-- TAB 6: SC9 Analysis -->
+<div class="tab" id="tab-sc9">
+  <div class="card">
+    <h3>SC9: Immune Burst Sub-population</h3>
+    <p style="font-size:13px;margin-bottom:12px">
+      <span class="highlight">361 cells (2% of AMP-high)</span> with AMP score = <strong>1.18</strong> (10x higher than other sub-clusters).
+      Toll pathway fully activated: cact, dl (Dorsal/NF-κB), Bomanin effectors (BomBc1, BomS1).
+    </p>
+    <div style="background:rgba(232,72,85,0.1);border:1px solid var(--red);border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px">
+      <strong>Key finding:</strong> SC9's AMP profile matches bulk vFB (r = 0.394, all vFB-like),
+      confirming these cells represent the <strong>immune effector state</strong> of fat body.
+      However, Toll pathway genes (Dif, dl, cact) are uniquely high in SC9 but NOT enriched in bulk vFB vs SAT —
+      indicating SC9 is a <strong>rare immune burst state</strong> whose signal is diluted in bulk data.
+    </div>
+  </div>
+  <div class="row">
+    <div class="col"><div id="sc9-amp" style="height:420px"></div></div>
+    <div class="col"><div id="sc9-toll" style="height:420px"></div></div>
+  </div>
+  <div class="card">
+    <div id="sc9-bomanin" style="height:350px"></div>
+  </div>
+</div>
+
+<!-- TAB 7: Figures -->
+<div class="tab" id="tab-figures">
+  <div class="card"><h3>Annotated UMAP (v4)</h3>
+    <div class="img-container"><img src="figures/sc13_UMAP_annotated_v4.png" loading="lazy"></div></div>
+  <div class="card"><h3>SAT Tissue Similarity (Broad cell types)</h3>
+    <div class="img-container"><img src="figures/sc17_SAT_tissue_similarity_broad.png" loading="lazy"></div></div>
+  <div class="card"><h3>vFB vs SAT Gene Sets — UMAP</h3>
+    <div class="img-container"><img src="figures/sc20_vFB_SAT_geneset_UMAP.png" loading="lazy"></div></div>
+  <div class="card"><h3>vFB vs SAT Gene Sets — Heatmap</h3>
+    <div class="img-container"><img src="figures/sc21_vFB_SAT_geneset_heatmap.png" loading="lazy"></div></div>
+  <div class="card"><h3>AMP Sub-cluster — Context UMAP</h3>
+    <div class="img-container"><img src="figures/sc27_AMP_subcluster_context.png" loading="lazy"></div></div>
+</div>
+
+<script>
+// ── Globals ──
+let geneList=[], geneExpr={}, umapData={}, clusterStats={}, annotations={};
+let bulkCorr=[], genesets={}, ampData={}, sc9Data={};
+const PALETTE={'0':'#FF6B6B','1':'#74B9FF','2':'#E84855','3':'#A29BFE','4':'#6C5CE7',
+  '5':'#00CEC9','6':'#55EFC4','7':'#FF9F43','8':'#81ECEC','9':'#B2BEC3',
+  '10':'#EE5A24','11':'#DFE6E9','12':'#FD79A8','13':'#636E72','14':'#F79F1F'};
+const HIGH_AMP=new Set(['0','2','7','10','14']);
+const plotBg='#1a1c23', plotGrid='#2d2f36', plotText='#888';
+const plotLayout={paper_bgcolor:plotBg,plot_bgcolor:plotBg,
+  font:{color:plotText,size:11},margin:{l:50,r:20,t:40,b:40},
+  xaxis:{gridcolor:plotGrid,zerolinecolor:plotGrid},
+  yaxis:{gridcolor:plotGrid,zerolinecolor:plotGrid}};
+
+// ── Tab switching ──
+function showTab(id){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+  document.querySelectorAll('nav button').forEach(b=>{
+    if(b.textContent.toLowerCase().includes(id.slice(0,4))||
+       (id==='umap'&&b.textContent.includes('UMAP'))||
+       (id==='annotation'&&b.textContent.includes('Annotation'))||
+       (id==='bulk'&&b.textContent.includes('Bulk'))||
+       (id==='genesets'&&b.textContent.includes('Gene Set'))||
+       (id==='amp'&&b.textContent.includes('AMP'))||
+       (id==='sc9'&&b.textContent.includes('SC9'))||
+       (id==='figures'&&b.textContent.includes('Figure')))
+      b.classList.add('active');
+  });
+  // Resize plotly on tab show
+  setTimeout(()=>window.dispatchEvent(new Event('resize')),100);
+}
+
+// ── Data loading ──
+async function loadJSON(url){const r=await fetch(url);return r.json();}
+
+async function init(){
+  document.getElementById('metrics-bar').innerHTML='<div class="loading">Loading data...</div>';
+  [geneList, umapData, geneExpr, clusterStats, annotations]=await Promise.all([
+    loadJSON('data/gene_list.json'),
+    loadJSON('data/umap_points.json'),
+    loadJSON('data/gene_expression.json'),
+    loadJSON('data/cluster_stats.json'),
+    loadJSON('data/annotations.json'),
+  ]);
+  // Optional data
+  try{bulkCorr=await loadJSON('data/bulk_correlation.json')}catch(e){}
+  try{genesets=await loadJSON('data/genesets.json')}catch(e){}
+  try{ampData=await loadJSON('data/amp_subclusters.json')}catch(e){}
+  try{sc9Data=await loadJSON('data/sc9_analysis.json')}catch(e){}
+
+  // Metrics
+  document.getElementById('metrics-bar').innerHTML=`
+    <div class="metric"><div class="label">Cells</div><div class="value">48,232</div></div>
+    <div class="metric"><div class="label">Genes</div><div class="value">14,358</div></div>
+    <div class="metric"><div class="label">Clusters</div><div class="value">15</div></div>
+    <div class="metric"><div class="label">Datasets</div><div class="value">FCA+AFCA</div></div>
+    <div class="metric"><div class="label">AMP-high clusters</div><div class="value" style="color:var(--red)">5</div></div>
+  `;
+
+  populateGeneSelect();
+  renderClusterUMAP();
+  selectGene('Dro');
+  renderAnnotationTable();
+  renderBulkTab();
+  renderGenesetsTab();
+  renderAMPTab();
+  renderSC9Tab();
+}
+
+// ── Gene selector ──
+function populateGeneSelect(filter=''){
+  const sel=document.getElementById('gene-select');
+  const genes=filter?geneList.filter(g=>g.toLowerCase().includes(filter.toLowerCase())):geneList;
+  sel.innerHTML=genes.slice(0,500).map(g=>`<option value="${g}">${g}</option>`).join('');
+  document.getElementById('gene-results').textContent=
+    `${genes.length.toLocaleString()} / ${geneList.length.toLocaleString()}`;
+}
+function filterGenes(){populateGeneSelect(document.getElementById('gene-filter').value);}
+function onGeneChange(){selectGene(document.getElementById('gene-select').value);}
+
+function selectGene(gene){
+  if(!geneList.includes(gene))return;
+  document.getElementById('gene-select').value=gene;
+  renderGeneUMAP(gene);
+  renderBarChart(gene);
+  renderDotPlot(gene);
+}
+
+// ── UMAP Plots ──
+function renderClusterUMAP(){
+  const traces=[];
+  const cls=[...new Set(umapData.cluster)].sort((a,b)=>parseInt(a)-parseInt(b));
+  cls.forEach(cl=>{
+    const idx=[];
+    umapData.cluster.forEach((c,i)=>{if(c===cl)idx.push(i)});
+    traces.push({
+      x:idx.map(i=>umapData.umap1[i]),y:idx.map(i=>umapData.umap2[i]),
+      mode:'markers',marker:{size:2,color:PALETTE[cl]||'#888',opacity:0.5},
+      name:`C${cl}`,type:'scattergl',
+      text:idx.map(i=>`C${cl} | ${umapData.sex[i]} | ${umapData.age[i]}d`),
+      hoverinfo:'text'
+    });
+  });
+  Plotly.newPlot('umap-cluster',traces,{
+    ...plotLayout,title:{text:'UMAP — Clusters',font:{size:14}},
+    xaxis:{...plotLayout.xaxis,title:'UMAP1',showticklabels:false},
+    yaxis:{...plotLayout.yaxis,title:'UMAP2',showticklabels:false},
+    showlegend:true,legend:{font:{size:9},itemsizing:'constant',tracegroupgap:2},
+    height:500
+  },{responsive:true});
+}
+
+function renderGeneUMAP(gene){
+  let expr;
+  if(geneExpr[gene]){
+    expr=geneExpr[gene];
+  }else{
+    // Use cluster means as fallback
+    const gi=geneList.indexOf(gene);
+    if(gi<0)return;
+    expr=umapData.cluster.map(cl=>clusterStats.means[cl][gi]);
+  }
+  const vmax=expr.slice().sort((a,b)=>a-b)[Math.floor(expr.length*0.99)]||0.01;
+  Plotly.newPlot('umap-gene',[{
+    x:umapData.umap1,y:umapData.umap2,mode:'markers',type:'scattergl',
+    marker:{size:2.5,color:expr,colorscale:'Blues',cmin:0,cmax:vmax,
+      colorbar:{title:'expr',thickness:12,len:0.5},opacity:0.7},
+    text:expr.map((v,i)=>`${gene}: ${v.toFixed(3)}\nC${umapData.cluster[i]}`),
+    hoverinfo:'text'
+  }],{
+    ...plotLayout,title:{text:`Expression: ${gene}`,font:{size:14}},
+    xaxis:{...plotLayout.xaxis,showticklabels:false},
+    yaxis:{...plotLayout.yaxis,showticklabels:false},height:500
+  },{responsive:true});
+}
+
+function renderBarChart(gene){
+  const gi=geneList.indexOf(gene);if(gi<0)return;
+  const cls=Object.keys(clusterStats.means).sort((a,b)=>parseInt(a)-parseInt(b));
+  const means=cls.map(cl=>clusterStats.means[cl][gi]);
+  const colors=cls.map(cl=>HIGH_AMP.has(cl)?'#E84855':'#74B9FF');
+  Plotly.newPlot('bar-cluster',[{
+    x:cls.map(c=>'C'+c),y:means,type:'bar',
+    marker:{color:colors},
+    text:means.map(v=>v.toFixed(3)),textposition:'outside',textfont:{size:9}
+  }],{
+    ...plotLayout,title:{text:`Mean expression: ${gene}`,font:{size:13}},
+    xaxis:{...plotLayout.xaxis,title:'Cluster'},
+    yaxis:{...plotLayout.yaxis,title:'Mean log-norm expr'},height:300
+  },{responsive:true});
+}
+
+function renderDotPlot(gene){
+  const gi=geneList.indexOf(gene);if(gi<0)return;
+  const cls=Object.keys(clusterStats.means).sort((a,b)=>parseInt(a)-parseInt(b));
+  const means=cls.map(cl=>clusterStats.means[cl][gi]);
+  const pcts=cls.map(cl=>clusterStats.pcts[cl][gi]);
+  Plotly.newPlot('dotplot',[{
+    x:cls.map(c=>'C'+c),y:Array(cls.length).fill(gene),mode:'markers',
+    marker:{size:pcts.map(p=>Math.max(p/3,3)),color:means,
+      colorscale:'Blues',cmin:0,cmax:Math.max(...means)||0.01,
+      colorbar:{title:'mean',thickness:10,len:0.8}},
+    text:cls.map((c,i)=>`C${c}: mean=${means[i].toFixed(3)}, ${pcts[i].toFixed(1)}%`),
+    hoverinfo:'text',type:'scatter'
+  }],{
+    ...plotLayout,title:{text:'Dot plot (size=% expressing, color=mean)',font:{size:13}},
+    xaxis:{...plotLayout.xaxis,title:'Cluster'},
+    yaxis:{...plotLayout.yaxis,showticklabels:true},height:300
+  },{responsive:true});
+}
+
+// ── Annotation table ──
+function renderAnnotationTable(){
+  const cls=Object.keys(annotations).sort((a,b)=>parseInt(a)-parseInt(b));
+  let html=`<tr><th>C</th><th>Annotation</th><th>Sex</th><th>Age</th><th>Cells</th><th>Markers</th><th>Function</th></tr>`;
+  cls.forEach(cl=>{
+    const a=annotations[cl];
+    const isAmp=HIGH_AMP.has(cl);
+    html+=`<tr class="${isAmp?'amp-high':''}">
+      <td>${isAmp?'★ ':' '}C${cl}</td>
+      <td style="font-weight:600">${a.name}</td>
+      <td>${a.sex==='Female'?'<span class="tag tag-f">F</span>':'<span class="tag tag-m">M</span>'}</td>
+      <td>${a.age}</td>
+      <td>${a.n_cells.toLocaleString()}</td>
+      <td style="font-size:11px">${a.markers}</td>
+      <td style="font-size:11px;color:var(--muted)">${a.function}</td>
+    </tr>`;
+  });
+  document.getElementById('annotation-table').innerHTML=html;
+
+  // Function classification
+  const funcs=[
+    {name:'Vitellogenic',clusters:'C0, C12, C14',markers:'Yp1/2/3, apolpp',color:'var(--pink)'},
+    {name:'Lipogenic',clusters:'C1, C6, C9',markers:'FASN1, Lsd-2, Jabba',color:'var(--orange)'},
+    {name:'Immune-active',clusters:'C2, C7, C10',markers:'Dro, Mtk, Tep4',color:'var(--red)'},
+    {name:'Metabolic sensing',clusters:'C3, C9',markers:'foxo, InR, AkhR',color:'var(--green)'},
+    {name:'Stress response',clusters:'C5, C14',markers:'Hsp26/68/70/83',color:'#FFD93D'},
+    {name:'Identity maintenance',clusters:'C4, C10, C11',markers:'hth, disco-r, fz2',color:'var(--accent)'},
+    {name:'Sexually dimorphic',clusters:'C13',markers:'dsx, tra, tim',color:'#A29BFE'},
+  ];
+  let fhtml='<table><tr><th>Function</th><th>Clusters</th><th>Key Markers</th></tr>';
+  funcs.forEach(f=>{
+    fhtml+=`<tr><td style="color:${f.color};font-weight:600">${f.name}</td><td>${f.clusters}</td><td style="font-size:11px">${f.markers}</td></tr>`;
+  });
+  document.getElementById('func-table').innerHTML=fhtml+'</table>';
+}
+
+// ── Bulk correlation ──
+function renderBulkTab(){
+  if(!bulkCorr.length)return;
+  const sorted=[...bulkCorr].sort((a,b)=>b.vFB_SAT_diff-a.vFB_SAT_diff);
+  // Scatter
+  Plotly.newPlot('bulk-scatter',[{
+    x:sorted.map(r=>r.r_SAT),y:sorted.map(r=>r.r_vFB),
+    mode:'markers+text',type:'scatter',
+    marker:{size:sorted.map(r=>Math.sqrt(r.n_cells)/3+5),
+      color:sorted.map(r=>r.vFB_SAT_diff>0?'#E84855':'#3A86FF'),opacity:0.8},
+    text:sorted.map(r=>'C'+r.cluster),textposition:'top center',textfont:{size:9,color:'#aaa'},
+    hovertext:sorted.map(r=>`C${r.cluster}\nr_vFB=${r.r_vFB.toFixed(3)}\nr_SAT=${r.r_SAT.toFixed(3)}\ndiff=${r.vFB_SAT_diff.toFixed(3)}`),
+    hoverinfo:'text'
+  },{x:[0.3,0.5],y:[0.3,0.5],mode:'lines',line:{dash:'dash',color:'#666'},showlegend:false}],{
+    ...plotLayout,title:{text:'Cluster Identity: r(vFB) vs r(SAT)',font:{size:13}},
+    xaxis:{...plotLayout.xaxis,title:'Pearson r (vs SAT)'},
+    yaxis:{...plotLayout.yaxis,title:'Pearson r (vs vFB)'},height:450,showlegend:false
+  },{responsive:true});
+  // Bar
+  Plotly.newPlot('bulk-bar',[{
+    x:sorted.map(r=>'C'+r.cluster),y:sorted.map(r=>r.vFB_SAT_diff),type:'bar',
+    marker:{color:sorted.map(r=>r.vFB_SAT_diff>0?'#E84855':'#3A86FF')},
+    text:sorted.map(r=>r.vFB_SAT_diff.toFixed(3)),textposition:'outside',textfont:{size:9}
+  }],{
+    ...plotLayout,title:{text:'r(vFB) - r(SAT) per cluster',font:{size:13}},
+    xaxis:{...plotLayout.xaxis,title:'Cluster'},
+    yaxis:{...plotLayout.yaxis,title:'Δr (positive = vFB-like)'},height:450
+  },{responsive:true});
+}
+
+// ── Gene sets ──
+function renderGenesetsTab(){
+  if(!genesets.vfb_up)return;
+  let h1='<tr><th>#</th><th>Gene</th><th>LFC</th><th>padj</th></tr>';
+  genesets.vfb_up.slice(0,20).forEach((g,i)=>{
+    h1+=`<tr><td>${i+1}</td><td style="font-weight:600;cursor:pointer" onclick="showTab('umap');selectGene('${g.gene_symbol}')">${g.gene_symbol}</td>
+      <td style="color:var(--red)">+${g.log2FoldChange.toFixed(2)}</td>
+      <td>${g.padj.toExponential(1)}</td></tr>`;
+  });
+  document.getElementById('vfb-genes-table').innerHTML=h1;
+  let h2='<tr><th>#</th><th>Gene</th><th>LFC</th><th>padj</th></tr>';
+  genesets.sat_up.slice(0,20).forEach((g,i)=>{
+    h2+=`<tr><td>${i+1}</td><td style="font-weight:600;cursor:pointer" onclick="showTab('umap');selectGene('${g.gene_symbol}')">${g.gene_symbol}</td>
+      <td style="color:var(--accent)">${g.log2FoldChange.toFixed(2)}</td>
+      <td>${g.padj.toExponential(1)}</td></tr>`;
+  });
+  document.getElementById('sat-genes-table').innerHTML=h2;
+}
+
+// ── AMP sub-clustering ──
+function renderAMPTab(){
+  if(!ampData.summary)return;
+  let html='<tr><th>SubC</th><th>Cells</th><th>AMP</th><th>Sex</th><th>Age</th><th>Origin</th></tr>';
+  ampData.summary.forEach(r=>{
+    const isHot=r.AMP_mean>0.5;
+    html+=`<tr${isHot?' class="amp-high"':''}>
+      <td>SC${r.sub_cluster}</td><td>${r.n_cells.toLocaleString()}</td>
+      <td style="font-weight:700;color:${isHot?'var(--red)':'inherit'}">${r.AMP_mean.toFixed(4)}</td>
+      <td>${r.sex_dominant}</td><td>${r.age_dominant}</td>
+      <td style="font-size:11px">${r.original_clusters}</td></tr>`;
+  });
+  document.getElementById('amp-table').innerHTML=html;
+}
+
+// ── SC9 Analysis ──
+function renderSC9Tab(){
+  if(!sc9Data.amp_comparison)return;
+  // AMP comparison
+  const amp=sc9Data.amp_comparison;
+  Plotly.newPlot('sc9-amp',[
+    {x:amp.map(g=>g.gene),y:amp.map(g=>g.SC9),name:'SC9',type:'bar',marker:{color:'#E84855'}},
+    {x:amp.map(g=>g.gene),y:amp.map(g=>g.vFB),name:'Bulk vFB',type:'bar',marker:{color:'#FF9F43'}},
+    {x:amp.map(g=>g.gene),y:amp.map(g=>g.SAT),name:'Bulk SAT',type:'bar',marker:{color:'#3A86FF'}},
+  ],{
+    ...plotLayout,barmode:'group',
+    title:{text:'AMP Genes: SC9 vs Bulk vFB vs SAT',font:{size:13}},
+    xaxis:{...plotLayout.xaxis,tickangle:-45},
+    yaxis:{...plotLayout.yaxis,title:'log1p(expression)'},
+    height:420,legend:{x:0.7,y:1}
+  },{responsive:true});
+  // Toll pathway
+  const toll=sc9Data.toll_pathway;
+  Plotly.newPlot('sc9-toll',[
+    {x:toll.map(g=>g.gene),y:toll.map(g=>g.SC9),name:'SC9',type:'bar',marker:{color:'#E84855'}},
+    {x:toll.map(g=>g.gene),y:toll.map(g=>g.vFB),name:'Bulk vFB',type:'bar',marker:{color:'#FF9F43'}},
+    {x:toll.map(g=>g.gene),y:toll.map(g=>g.SAT),name:'Bulk SAT',type:'bar',marker:{color:'#3A86FF'}},
+  ],{
+    ...plotLayout,barmode:'group',
+    title:{text:'Toll Pathway: SC9 vs Bulk vFB vs SAT',font:{size:13}},
+    xaxis:{...plotLayout.xaxis},
+    yaxis:{...plotLayout.yaxis,title:'log1p(expression)'},
+    height:420,legend:{x:0.7,y:1}
+  },{responsive:true});
+  // Bomanin
+  const bom=sc9Data.bomanin;
+  Plotly.newPlot('sc9-bomanin',[
+    {x:bom.map(g=>g.gene),y:bom.map(g=>g.SC9),name:'SC9',type:'bar',marker:{color:'#E84855'}},
+    {x:bom.map(g=>g.gene),y:bom.map(g=>g.vFB),name:'Bulk vFB',type:'bar',marker:{color:'#FF9F43'}},
+    {x:bom.map(g=>g.gene),y:bom.map(g=>g.SAT),name:'Bulk SAT',type:'bar',marker:{color:'#3A86FF'}},
+  ],{
+    ...plotLayout,barmode:'group',
+    title:{text:'Bomanin Genes: SC9 vs Bulk (vFB≈SAT, fat body common)',font:{size:13}},
+    xaxis:{...plotLayout.xaxis},
+    yaxis:{...plotLayout.yaxis,title:'log1p(expression)'},
+    height:350,legend:{x:0.7,y:1}
+  },{responsive:true});
+}
+
+init();
+</script>
+</body>
+</html>
