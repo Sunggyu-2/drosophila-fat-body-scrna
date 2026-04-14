@@ -143,8 +143,8 @@ header .badge{font-size:11px;background:var(--accent);color:#fff;padding:2px 10p
 
   <!-- UMAP row -->
   <div class="row">
-    <div class="col"><div id="umap-cluster" style="height:480px"></div></div>
-    <div class="col"><div id="umap-gene" style="height:480px"></div></div>
+    <div class="col" style="flex:0 0 42%"><div id="umap-cluster" style="height:560px"></div></div>
+    <div class="col" style="flex:1"><div id="umap-gene" style="height:720px"></div></div>
   </div>
 
   <!-- Bar + Dot plot row -->
@@ -304,8 +304,9 @@ function renderClusterUMAP(){
     ...plotLayout,title:{text:'UMAP — AMP-high Sub-clusters (Leiden, res 0.6)',font:{size:14,color:'#222'}},
     xaxis:{...plotLayout.xaxis,title:'UMAP1',showticklabels:false},
     yaxis:{...plotLayout.yaxis,title:'UMAP2',showticklabels:false},
-    showlegend:true,legend:{font:{size:9,color:'#555'},itemsizing:'constant',tracegroupgap:2},
-    height:480
+    showlegend:true,legend:{font:{size:10,color:'#555'},itemsizing:'constant',tracegroupgap:2},
+    yaxis:{...plotLayout.yaxis,title:'UMAP2',showticklabels:false,scaleanchor:'x',scaleratio:1},
+    height:560
   },{responsive:true});
 }
 
@@ -316,15 +317,37 @@ function renderGeneUMAP(gene){
     const gi=geneList.indexOf(gene);if(gi<0)return;
     expr=umapData.cluster.map(cl=>clusterStats.means[cl][gi]);
   }
-  const sorted=expr.slice().sort((a,b)=>a-b);
-  const vmax=sorted[Math.floor(sorted.length*0.99)]||0.01;
 
-  // Split into non-expressing (background) and expressing (colored) for clear contrast
+  // Split into non-expressing (background) and expressing (colored)
   const zeroIdx=[], exprIdx=[];
   expr.forEach((v,i)=>{if(v<=0)zeroIdx.push(i);else exprIdx.push(i);});
-
   // Sort expressing cells by value so high-expression dots render on top
   exprIdx.sort((a,b)=>expr[a]-expr[b]);
+
+  // Quantile-based binning of expressing cells for sharper visual contrast
+  // (makes subtle mid-range differences visible by equalising histogram)
+  const exprVals=exprIdx.map(i=>expr[i]);
+  const sortedPos=exprVals.slice().sort((a,b)=>a-b);
+  const vmaxRaw=sortedPos[Math.floor(sortedPos.length*0.99)]||0.01;
+  const vminRaw=sortedPos[0]||0;
+
+  // 10 discrete quantile bins across expressing cells
+  const N_BINS=10;
+  const qCuts=[];
+  for(let k=1;k<N_BINS;k++){
+    qCuts.push(sortedPos[Math.floor(sortedPos.length*k/N_BINS)]);
+  }
+  // Binned values normalised to [0,1]
+  const binVal=exprVals.map(v=>{
+    let b=0; for(const c of qCuts){ if(v>c) b++; else break; }
+    return b/(N_BINS-1);
+  });
+
+  // Colour scale: viridis-like, perceptually uniform, 10 discrete stops
+  const stops=[
+    [0.00,'#440154'],[0.11,'#482878'],[0.22,'#3e4989'],[0.33,'#31688e'],
+    [0.44,'#26828e'],[0.55,'#1f9e89'],[0.66,'#35b779'],[0.77,'#6ece58'],
+    [0.88,'#b5de2b'],[1.00,'#fde725']];
 
   const traces=[];
   // Layer 1: non-expressing cells as light gray background
@@ -332,31 +355,52 @@ function renderGeneUMAP(gene){
     traces.push({
       x:zeroIdx.map(i=>umapData.umap1[i]),y:zeroIdx.map(i=>umapData.umap2[i]),
       mode:'markers',type:'scattergl',
-      marker:{size:1.5,color:'#e5e7eb',opacity:0.4},
+      marker:{size:2.5,color:'#e5e7eb',opacity:0.35},
       text:zeroIdx.map(i=>`${gene}: 0\nSC${umapData.cluster[i]}`),
       hoverinfo:'text',showlegend:false
     });
   }
-  // Layer 2: expressing cells with strong color gradient
+  // Layer 2: expressing cells with quantile-binned viridis gradient
   if(exprIdx.length>0){
-    const exprVals=exprIdx.map(i=>expr[i]);
     traces.push({
       x:exprIdx.map(i=>umapData.umap1[i]),y:exprIdx.map(i=>umapData.umap2[i]),
       mode:'markers',type:'scattergl',
-      marker:{size:3,color:exprVals,
-        colorscale:[[0,'#c6dbef'],[0.15,'#6baed6'],[0.35,'#2171b5'],[0.6,'#08519c'],[1,'#08306b']],
-        cmin:0,cmax:vmax,
-        colorbar:{title:'expr',thickness:12,len:0.5},opacity:0.85},
-      text:exprIdx.map(i=>`${gene}: ${expr[i].toFixed(3)}\nSC${umapData.cluster[i]}`),
+      marker:{size:5,color:binVal,
+        colorscale:stops, cmin:0, cmax:1,
+        line:{width:0.3,color:'rgba(0,0,0,0.25)'},
+        colorbar:{
+          title:{text:`${gene}<br>(decile rank)`,font:{size:11}},
+          thickness:18,len:0.75,x:1.02,
+          tickmode:'array',
+          tickvals:[0, 0.22, 0.44, 0.66, 0.88, 1.0],
+          ticktext:[
+            sortedPos[0]?.toFixed(2)||'0',
+            sortedPos[Math.floor(sortedPos.length*0.2)]?.toFixed(2)||'',
+            sortedPos[Math.floor(sortedPos.length*0.4)]?.toFixed(2)||'',
+            sortedPos[Math.floor(sortedPos.length*0.6)]?.toFixed(2)||'',
+            sortedPos[Math.floor(sortedPos.length*0.8)]?.toFixed(2)||'',
+            vmaxRaw.toFixed(2),
+          ],
+          tickfont:{size:10}
+        },opacity:0.95},
+      text:exprIdx.map((i,k)=>`${gene}: ${expr[i].toFixed(3)} (decile ${Math.round(binVal[k]*(N_BINS-1))+1}/${N_BINS})\nSC${umapData.cluster[i]}`),
       hoverinfo:'text',showlegend:false
     });
   }
 
-  const pctExpr=((exprIdx.length/(zeroIdx.length+exprIdx.length))*100).toFixed(1);
+  const nTot=zeroIdx.length+exprIdx.length;
+  const pctExpr=((exprIdx.length/nTot)*100).toFixed(1);
+  const meanExpr=exprIdx.length?exprVals.reduce((s,v)=>s+v,0)/exprVals.length:0;
+
   Plotly.newPlot('umap-gene',traces,{
-    ...plotLayout,title:{text:`${gene}  (${pctExpr}% expressing)`,font:{size:14,color:'#222'}},
-    xaxis:{...plotLayout.xaxis,showticklabels:false},
-    yaxis:{...plotLayout.yaxis,showticklabels:false},height:480
+    ...plotLayout,
+    title:{text:`${gene}  —  ${pctExpr}% expressing (n=${exprIdx.length.toLocaleString()}/${nTot.toLocaleString()}), mean(+)= ${meanExpr.toFixed(2)}, max= ${vmaxRaw.toFixed(2)}`,
+           font:{size:14,color:'#222'}},
+    xaxis:{...plotLayout.xaxis,title:'UMAP1',showticklabels:false,zeroline:false},
+    yaxis:{...plotLayout.yaxis,title:'UMAP2',showticklabels:false,zeroline:false,
+           scaleanchor:'x',scaleratio:1},
+    margin:{l:40,r:110,t:50,b:40},
+    height:720
   },{responsive:true});
 }
 
