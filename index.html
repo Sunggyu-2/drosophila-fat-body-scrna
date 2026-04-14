@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Drosophila Fat Body scRNA-seq Explorer</title>
+<title>Drosophila Fat Body scRNA-seq Explorer — AMP-high Sub-clusters</title>
 <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -108,9 +108,10 @@ header .badge{font-size:11px;background:var(--accent);color:#fff;padding:2px 10p
   <span style="font-size:22px">🪰</span>
   <h1>Drosophila Fat Body scRNA-seq</h1>
   <span class="badge">D. melanogaster</span>
-  <span class="badge" style="background:var(--red)">48,232 cells</span>
+  <span class="badge" style="background:#0f766e">AMP-high re-cluster</span>
+  <span class="badge" style="background:var(--red)">18,651 cells</span>
   <span class="badge" style="background:var(--green)">14,358 genes</span>
-  <span class="badge" style="background:var(--orange)">15 clusters</span>
+  <span class="badge" style="background:var(--orange)">14 sub-clusters</span>
 </header>
 
 <div class="main">
@@ -154,10 +155,11 @@ header .badge{font-size:11px;background:var(--accent);color:#fff;padding:2px 10p
 
   <!-- Cluster Annotation panel -->
   <div class="card" style="margin-top:16px">
-    <div class="section-title">Cluster Annotation</div>
+    <div class="section-title">AMP-high Sub-cluster Annotation</div>
     <p style="color:var(--muted);font-size:12px;margin-bottom:10px">
-      15 Leiden clusters resolved from integrated FCA + AFCA fat body data.
-      <strong style="color:var(--red)">No published study has resolved adult <em>Drosophila</em> fat body into subtypes by scRNA-seq</strong> —
+      14 sub-clusters resolved by re-running PCA → Harmony → UMAP → Leiden
+      on the 18,651 AMP-high cells (original clusters C0, C2, C7, C10, C14).
+      <strong style="color:var(--red)">No published study has resolved adult <em>Drosophila</em> fat body immune-active cells into subtypes by scRNA-seq</strong> —
       FCA (Li et al. 2022) and AFCA (Lu et al. 2023) both classified fat body as a single cell type.
     </p>
     <div class="func-legend" id="func-legend"></div>
@@ -166,27 +168,17 @@ header .badge{font-size:11px;background:var(--accent);color:#fff;padding:2px 10p
     </div>
   </div>
 
-  <!-- Aging trajectory -->
+  <!-- Methods -->
   <div class="row">
     <div class="col card">
-      <div class="section-title">Female Aging Trajectory</div>
-      <div style="font-size:13px;line-height:1.8;color:var(--text)">
-        <span style="color:var(--pink);font-weight:700">C0/C12</span> (3d, active)
-        → <span style="color:var(--pink);font-weight:700">C14</span> (5d, stressed)
-        → <span style="color:var(--pink);font-weight:700">C1/C11</span> (30d, lipogenic)
-        → <span style="color:var(--pink);font-weight:700">C9</span> (50d, metabolic)
-        → <span style="color:var(--pink);font-weight:700">C4</span> (50–70d, identity)
-        → <span style="color:var(--pink);font-weight:700">C6</span> (70d, senescent)
-      </div>
-    </div>
-    <div class="col card">
-      <div class="section-title">Male Aging Trajectory</div>
-      <div style="font-size:13px;line-height:1.8;color:var(--text)">
-        <span style="color:#2563eb;font-weight:700">C13</span> (5d, reproductive)
-        → <span style="color:#2563eb;font-weight:700">C2/C7</span> (3d, immune)
-        → <span style="color:#2563eb;font-weight:700">C3</span> (30d, metabolic)
-        → <span style="color:#2563eb;font-weight:700">C10</span> (30–50d, immune-primed)
-        → <span style="color:#2563eb;font-weight:700">C5</span> (50d, stressed)
+      <div class="section-title">Re-clustering recipe</div>
+      <div style="font-size:12px;line-height:1.7;color:var(--text)">
+        <strong>Input:</strong> 18,651 cells from AMP-high clusters C0, C2, C7, C10, C14 of the integrated FCA + AFCA fat body atlas.<br>
+        <strong>Pipeline:</strong> raw log-normalised counts → 3,000 highly variable genes (seurat v1)
+        → scale (clip 10) → PCA (30 PCs) → <em>Harmony</em> batch correction on <code>dataset</code> (FCA/AFCA, converged in 28 iter)
+        → neighbours (<code>k = 20</code> on <code>X_pca_harmony</code>) → UMAP (<code>min_dist = 0.3</code>, seed 42)
+        → Leiden (<code>resolution = 0.6</code>, seed 42) → 14 sub-clusters.<br>
+        <strong>Markers:</strong> Wilcoxon <code>rank_genes_groups</code> over the sub-Leiden labels on the raw-count matrix.
       </div>
     </div>
   </div>
@@ -198,8 +190,8 @@ header .badge{font-size:11px;background:var(--accent);color:#fff;padding:2px 10p
 let geneList=[], geneExpr={}, umapData={}, clusterStats={}, annotations={};
 const PALETTE={'0':'#ef4444','1':'#3b82f6','2':'#f97316','3':'#8b5cf6','4':'#6366f1',
   '5':'#14b8a6','6':'#10b981','7':'#f59e0b','8':'#06b6d4','9':'#6b7280',
-  '10':'#dc2626','11':'#a3a3a3','12':'#ec4899','13':'#475569','14':'#eab308'};
-const HIGH_AMP=new Set(['0','2','7','10','14']);
+  '10':'#dc2626','11':'#a3a3a3','12':'#ec4899','13':'#475569'};
+const HIGH_AMP=new Set();  // all cells on this view are from AMP-high origin
 
 const plotBg='#ffffff', plotGrid='#f0f0f0', plotText='#444';
 const plotLayout={paper_bgcolor:plotBg,plot_bgcolor:plotBg,
@@ -300,17 +292,16 @@ function renderClusterUMAP(){
   cls.forEach(cl=>{
     const idx=[];
     umapData.cluster.forEach((c,i)=>{if(c===cl)idx.push(i)});
-    const name=annotations[cl]?`C${cl} ${annotations[cl].name}`:`C${cl}`;
     traces.push({
       x:idx.map(i=>umapData.umap1[i]),y:idx.map(i=>umapData.umap2[i]),
-      mode:'markers',marker:{size:2.5,color:PALETTE[cl]||'#999',opacity:0.55},
-      name:`C${cl}`,type:'scattergl',
-      text:idx.map(i=>`C${cl} | ${umapData.sex?.[i]||''} | ${umapData.age?.[i]||''}d`),
+      mode:'markers',marker:{size:2.5,color:PALETTE[cl]||'#999',opacity:0.6},
+      name:`SC${cl}`,type:'scattergl',
+      text:idx.map(i=>`SC${cl} | orig:C${umapData.orig_cluster?.[i]||'?'} | ${umapData.sex?.[i]||''} | ${umapData.age?.[i]||''}`),
       hoverinfo:'text'
     });
   });
   Plotly.newPlot('umap-cluster',traces,{
-    ...plotLayout,title:{text:'UMAP — Clusters',font:{size:14,color:'#222'}},
+    ...plotLayout,title:{text:'UMAP — AMP-high Sub-clusters (Leiden, res 0.6)',font:{size:14,color:'#222'}},
     xaxis:{...plotLayout.xaxis,title:'UMAP1',showticklabels:false},
     yaxis:{...plotLayout.yaxis,title:'UMAP2',showticklabels:false},
     showlegend:true,legend:{font:{size:9,color:'#555'},itemsizing:'constant',tracegroupgap:2},
@@ -342,7 +333,7 @@ function renderGeneUMAP(gene){
       x:zeroIdx.map(i=>umapData.umap1[i]),y:zeroIdx.map(i=>umapData.umap2[i]),
       mode:'markers',type:'scattergl',
       marker:{size:1.5,color:'#e5e7eb',opacity:0.4},
-      text:zeroIdx.map(i=>`${gene}: 0\nC${umapData.cluster[i]}`),
+      text:zeroIdx.map(i=>`${gene}: 0\nSC${umapData.cluster[i]}`),
       hoverinfo:'text',showlegend:false
     });
   }
@@ -356,7 +347,7 @@ function renderGeneUMAP(gene){
         colorscale:[[0,'#c6dbef'],[0.15,'#6baed6'],[0.35,'#2171b5'],[0.6,'#08519c'],[1,'#08306b']],
         cmin:0,cmax:vmax,
         colorbar:{title:'expr',thickness:12,len:0.5},opacity:0.85},
-      text:exprIdx.map(i=>`${gene}: ${expr[i].toFixed(3)}\nC${umapData.cluster[i]}`),
+      text:exprIdx.map(i=>`${gene}: ${expr[i].toFixed(3)}\nSC${umapData.cluster[i]}`),
       hoverinfo:'text',showlegend:false
     });
   }
@@ -375,12 +366,12 @@ function renderBarChart(gene){
   const means=cls.map(cl=>clusterStats.means[cl][gi]);
   const colors=cls.map(cl=>HIGH_AMP.has(cl)?'#ef4444':'#93c5fd');
   Plotly.newPlot('bar-cluster',[{
-    x:cls.map(c=>'C'+c),y:means,type:'bar',
-    marker:{color:colors,line:{color:cls.map(cl=>HIGH_AMP.has(cl)?'#b91c1c':'#60a5fa'),width:1}},
+    x:cls.map(c=>'SC'+c),y:means,type:'bar',
+    marker:{color:cls.map(cl=>PALETTE[cl]||'#93c5fd'),line:{color:'#475569',width:0.5}},
     text:means.map(v=>v.toFixed(3)),textposition:'outside',textfont:{size:9,color:'#666'}
   }],{
     ...plotLayout,title:{text:`Mean expression: ${gene}`,font:{size:13,color:'#222'}},
-    xaxis:{...plotLayout.xaxis,title:'Cluster'},
+    xaxis:{...plotLayout.xaxis,title:'Sub-cluster'},
     yaxis:{...plotLayout.yaxis,title:'Mean log-norm expr'},height:280
   },{responsive:true});
 }
@@ -391,15 +382,15 @@ function renderDotPlot(gene){
   const means=cls.map(cl=>clusterStats.means[cl][gi]);
   const pcts=cls.map(cl=>clusterStats.pcts[cl][gi]);
   Plotly.newPlot('dotplot',[{
-    x:cls.map(c=>'C'+c),y:Array(cls.length).fill(gene),mode:'markers',
+    x:cls.map(c=>'SC'+c),y:Array(cls.length).fill(gene),mode:'markers',
     marker:{size:pcts.map(p=>Math.max(p/3,3)),color:means,
       colorscale:'Blues',cmin:0,cmax:Math.max(...means)||0.01,
       colorbar:{title:'mean',thickness:10,len:0.8}},
-    text:cls.map((c,i)=>`C${c}: mean=${means[i].toFixed(3)}, ${pcts[i].toFixed(1)}%`),
+    text:cls.map((c,i)=>`SC${c}: mean=${means[i].toFixed(3)}, ${pcts[i].toFixed(1)}%`),
     hoverinfo:'text',type:'scatter'
   }],{
     ...plotLayout,title:{text:'Dot plot (size = % expressing, color = mean)',font:{size:13,color:'#222'}},
-    xaxis:{...plotLayout.xaxis,title:'Cluster'},
+    xaxis:{...plotLayout.xaxis,title:'Sub-cluster'},
     yaxis:{...plotLayout.yaxis,showticklabels:true},height:280
   },{responsive:true});
 }
@@ -407,46 +398,46 @@ function renderDotPlot(gene){
 // ── Annotation table ──
 function renderAnnotationTable(){
   const cls=Object.keys(annotations).sort((a,b)=>parseInt(a)-parseInt(b));
-  let html=`<tr><th>Cluster</th><th>Annotation</th><th>Sex</th><th>Age</th><th>Cells</th><th>Key Markers</th><th>Function</th></tr>`;
+  let html=`<tr><th>Sub-cluster</th><th>Sex</th><th>Age</th><th>Dataset</th><th>Cells</th><th>AMP</th><th>Origin (orig. clusters)</th><th>Top Markers</th></tr>`;
   cls.forEach(cl=>{
     const a=annotations[cl];
-    const isAmp=HIGH_AMP.has(cl);
+    const isAmp=(a.amp==='high');
     const sexTag=a.sex==='Female'?'<span class="tag tag-f">F</span>':
                  a.sex==='Male'?'<span class="tag tag-m">M</span>':
                  '<span class="tag" style="background:#f5f5f5;color:#888">Mix</span>';
+    const ampTag=isAmp?'<span class="tag tag-amp">high</span>':
+                 '<span class="tag" style="background:#fff7ed;color:#d97706">mid</span>';
     html+=`<tr class="${isAmp?'amp-high':''}" onclick="highlightCluster('${cl}')" style="cursor:pointer">
-      <td>${isAmp?'<span class="tag tag-amp">AMP</span> ':''}<strong>C${cl}</strong></td>
-      <td style="font-weight:600">${a.name||''}</td>
-      <td>${sexTag}</td>
+      <td><strong style="color:${PALETTE[cl]||'#555'}">SC${cl}</strong></td>
+      <td>${sexTag} <span style="font-size:10px;color:var(--muted)">${a.sex_pct?(a.sex_pct*100).toFixed(0)+'%':''}</span></td>
       <td>${a.age||''}</td>
+      <td style="font-size:11px;color:var(--muted)">${a.dataset||''}</td>
       <td>${(a.n_cells||0).toLocaleString()}</td>
-      <td style="font-size:11px;color:#555;max-width:200px">${a.markers||''}</td>
-      <td style="font-size:11px;color:var(--muted);max-width:250px">${a.function||''}</td>
+      <td>${ampTag}</td>
+      <td style="font-size:11px;color:#555;max-width:220px">${a.origin||''}</td>
+      <td style="font-size:11px;color:#555;max-width:280px">${a.markers||''}</td>
     </tr>`;
   });
   document.getElementById('annotation-table').innerHTML=html;
 }
 
 function renderFuncLegend(){
-  const funcs=[
-    {name:'Vitellogenic',color:'#ec4899',clusters:'C0, C12, C14'},
-    {name:'Lipogenic',color:'#f59e0b',clusters:'C1, C6, C9'},
-    {name:'Immune-active',color:'#ef4444',clusters:'C2, C7, C10'},
-    {name:'Metabolic',color:'#10b981',clusters:'C3, C9'},
-    {name:'Stress',color:'#eab308',clusters:'C5, C14'},
-    {name:'Identity',color:'#3b82f6',clusters:'C4, C10, C11'},
-    {name:'Sexually dimorphic',color:'#8b5cf6',clusters:'C13'},
-  ];
-  document.getElementById('func-legend').innerHTML=funcs.map(f=>
-    `<span class="func-chip" style="color:${f.color};border-color:${f.color};background:${f.color}11"
-       title="${f.clusters}">${f.name} (${f.clusters})</span>`
-  ).join('');
+  // Rank sub-clusters by AMP score for the legend
+  const entries=Object.entries(annotations)
+    .map(([cl,a])=>({cl, amp:a.amp, n:a.n_cells, sex:a.sex, origin:a.origin}))
+    .sort((a,b)=>(b.amp==='high')-(a.amp==='high'));
+  document.getElementById('func-legend').innerHTML=entries.map(e=>{
+    const color=PALETTE[e.cl]||'#777';
+    const label=`SC${e.cl} (${e.n.toLocaleString()} · ${e.sex} · ${e.amp})`;
+    return `<span class="func-chip" style="color:${color};border-color:${color};background:${color}11"
+       title="Origin: ${e.origin}">${label}</span>`;
+  }).join('');
 }
 
 function highlightCluster(cl){
   document.querySelectorAll('.anno-table tr').forEach(r=>r.classList.remove('selected'));
   const rows=document.querySelectorAll('.anno-table tr');
-  rows.forEach(r=>{if(r.textContent.includes(`C${cl}`)&&r.querySelector('td'))r.classList.add('selected');});
+  rows.forEach(r=>{if(r.textContent.includes(`SC${cl}`)&&r.querySelector('td'))r.classList.add('selected');});
 }
 
 init();
